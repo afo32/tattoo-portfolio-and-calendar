@@ -87,6 +87,7 @@
       display: inline-block;
     }
 
+    /* ---------- Needle trail signature (SVG draw-on-load) ---------- */
     .needle-trail {
       position: fixed;
       top: 0;
@@ -121,6 +122,7 @@
       }
     }
 
+    /* ---------- Nav ---------- */
     header {
       position: sticky;
       top: 0;
@@ -191,10 +193,19 @@
       }
 
       nav.open {
-        max-height: 300px;
+        max-height: 80vh;
+        overflow-y: auto;
       }
 
       nav a {
+        padding: 16px 6vw;
+        border-bottom: 1px solid var(--line);
+      }
+
+      nav .admin-link {
+        display: block;
+        width: 100%;
+        text-align: left;
         padding: 16px 6vw;
         border-bottom: 1px solid var(--line);
       }
@@ -204,6 +215,7 @@
       }
     }
 
+    /* ---------- Hero ---------- */
     .hero {
       position: relative;
       min-height: 92vh;
@@ -324,6 +336,7 @@
       font-size: clamp(2rem, 4.5vw, 3rem);
     }
 
+    /* ---------- Portfolio ---------- */
     #portfolio {
       background: rgba(232, 215, 176, 0.37);
       border-top: 1px solid var(--line);
@@ -455,6 +468,7 @@
       padding-left: 14px;
     }
 
+    /* ---------- Admin: login, modal, tarjetas con foto real ---------- */
     .admin-link {
       background: none;
       border: none;
@@ -605,6 +619,7 @@
       padding: 40px 0;
     }
 
+    /* ---------- Reseñas ---------- */
     #resenas {
       border-top: 1px solid var(--line);
       border-bottom: 1px solid var(--line);
@@ -791,6 +806,7 @@
       color: var(--blood-bright);
     }
 
+    /* ---------- Services ---------- */
     .services-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -828,6 +844,7 @@
       color: var(--gauge);
     }
 
+    /* ---------- Booking / Reservar cita ---------- */
     #reservar {
       background: rgba(232, 215, 176, 0.37);
       border-top: 1px solid var(--line);
@@ -1071,6 +1088,7 @@
       line-height: 1.6;
     }
 
+    /* ---------- Contact ---------- */
     #contacto {
       background: rgba(232, 215, 176, 0.37);
       border-top: 1px solid var(--line);
@@ -1638,6 +1656,7 @@
     const EMAILJS_TEMPLATE_ID = 'template_ryr6xzc';
     emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
 
+    let isAdmin = false;
     let currentFilter = 'tattoo';
 
     // ---------- Portfolio: carga dinámica desde Supabase ----------
@@ -1703,6 +1722,7 @@
         `;
         grid.appendChild(card);
 
+        // Carrusel dentro de la tarjeta, si tiene más de una foto
         if (images.length > 1) {
           const artEl = card.querySelector('.card-art');
           const imgs = artEl.querySelectorAll('.card-photo');
@@ -1741,6 +1761,8 @@
       renderPortfolio();
     });
 
+    // Si cambia de una columna a varias (o viceversa) al girar el celular o
+    // redimensionar la ventana, se vuelve a calcular la paginación.
     window.matchMedia('(max-width: 640px)').addEventListener('change', () => {
       portfolioVisibleCount = PORTFOLIO_STEP;
       renderPortfolio();
@@ -1950,6 +1972,7 @@
       applyAdminState(!!session);
     });
 
+    // Al cargar la página: revisar si ya había sesión guardada, y mostrar el portfolio
     sb.auth.getSession().then(({ data: { session } }) => {
       applyAdminState(!!session);
     });
@@ -2010,18 +2033,23 @@
     async function deletePhoto(id, imagePaths) {
       if (!confirm('¿Borrar esta foto del portfolio?')) return;
       await sb.from('portfolio_items').delete().eq('id', id);
+      // imagePaths trae las URLs públicas completas; extraemos los nombres de archivo para borrarlas del bucket
       const fileNames = imagePaths.map(p => p.split('/portfolio/').pop()).filter(Boolean);
       if (fileNames.length) await sb.storage.from('portfolio').remove(fileNames);
       loadPortfolio();
     }
 
     // ---------- Reservar cita: calendario ----------
+    // Pegá acá tu clave de API de Google y el ID de tu calendario de reservas (ver guía)
     const GOOGLE_CALENDAR_API_KEY = 'AIzaSyBD3wqtXBQOZrfSIUlVmrib8rjK5VHc3O8';
     const GOOGLE_CALENDAR_ID = 'bb8654726f9b73a548ef12690c1ad67fc300eefd7d284aff8522c4ce53d2bb24@group.calendar.google.com';
+    // Duración estimada de un turno, en minutos. Se usa para saber si un horario
+    // se solapa con algo que ya tenés agendado. Ajustalo a lo que uses en la práctica.
     const SLOT_DURATION_MINUTES = 90;
 
     const booking = { service: null, day: null, dayIso: null, time: null, price: null };
 
+    // Estilos de tatuaje (siempre "Consultar") y precios de piercing
     const TATTOO_STYLES = ['Realismo', 'Lineal', 'Anime', 'Tribal', 'Otros'];
     const PIERCING_PRICES = {
       'Lóbulo': 15, 'Nostril brillo': 15,
@@ -2066,9 +2094,10 @@
     contactCategorySelect.addEventListener('change', populateContactSubcategories);
     populateContactSubcategories();
 
+    // Generar próximos días disponibles (se omiten domingos y lunes: cerrado)
     const dayPicker = document.getElementById('dayPicker');
     const dowNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-    const closedDays = [0, 1];
+    const closedDays = [0, 1]; // domingo y lunes cerrado
     const days = [];
     let cursor = new Date();
     while (days.length < 10) {
@@ -2101,6 +2130,7 @@
     const allSlots = ['10:00', '11:30', '13:00', '16:00', '17:30', '19:00'];
     timePicker.innerHTML = '<p class="grid-empty" style="padding:10px 0;">Elegí un día para ver los horarios.</p>';
 
+    // Consulta a Google Calendar qué bloques de tiempo están ocupados ese día
     async function fetchBusyBlocks(dateIso) {
       const [y, m, d] = dateIso.split('-').map(Number);
       const dayStart = new Date(y, m - 1, d, 0, 0, 0);
@@ -2176,6 +2206,8 @@
       document.getElementById('sumPrice').textContent = booking.price || '—';
     }
 
+    // Al confirmar: si hay imágenes de referencia, se suben a Supabase primero
+    // y sus links se agregan al mensaje, recién ahí se abre WhatsApp.
     document.getElementById('btnWhatsapp').addEventListener('click', async (e) => {
       e.preventDefault();
       const btn = e.currentTarget;
